@@ -24,7 +24,7 @@ public class ClenYCSBClient extends DB {
     private final ClenClient clenClient;
 
     public ClenYCSBClient() {
-        clenClient = new ClenClient("localhost", 5001);
+        clenClient = new ClenClient("localhost", 35002);
     }
 
     @Override
@@ -33,7 +33,7 @@ public class ClenYCSBClient extends DB {
         ReadResponse response = clenClient.read(clenKey);
         KeyVal data = response.getData();
         byte[] valueBytes = data.getValue().toByteArray();
-        deserializeValues(valueBytes,fields,result);
+//        deserializeValues(valueBytes,fields,result);
         if (!response.getStatus().equals(ResponseStatus.SUCCESS)) {
             return Status.ERROR;
         } else {
@@ -53,10 +53,11 @@ public class ClenYCSBClient extends DB {
             String clenKey = getClenKey(table, key);
             String data = ByteString.copyFrom(valueBytes).toString();
             clenClient.commit(clenKey, data);
+            return Status.OK;
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return null;
+        return Status.ERROR;
     }
 
     private String getClenKey(String table, String key) {
