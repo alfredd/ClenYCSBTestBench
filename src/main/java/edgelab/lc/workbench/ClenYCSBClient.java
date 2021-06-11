@@ -1,37 +1,138 @@
 package edgelab.lc.workbench;
 
+import com.google.protobuf.ByteString;
+import edgelab.lc.KeyVal;
+import edgelab.lc.ReadResponse;
+import edgelab.lc.ResponseStatus;
+import site.ycsb.ByteArrayByteIterator;
 import site.ycsb.ByteIterator;
 import site.ycsb.DB;
 import site.ycsb.Status;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 public class ClenYCSBClient extends DB {
-    @Override
-    public Status read(String s, String s1, Set<String> set, Map<String, ByteIterator> map) {
-        return null;
+
+    private final ClenClient clenClient;
+
+    public ClenYCSBClient() {
+        clenClient = new ClenClient("localhost", 5001);
     }
 
     @Override
-    public Status scan(String s, String s1, int i, Set<String> set, Vector<HashMap<String, ByteIterator>> vector) {
-        return null;
+    public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
+        String clenKey= getClenKey(table, key);
+        ReadResponse response = clenClient.read(clenKey);
+        KeyVal data = response.getData();
+        byte[] valueBytes = data.getValue().toByteArray();
+        deserializeValues(valueBytes,fields,result);
+        if (!response.getStatus().equals(ResponseStatus.SUCCESS)) {
+            return Status.ERROR;
+        } else {
+            return Status.OK;
+        }
     }
 
     @Override
-    public Status update(String s, String s1, Map<String, ByteIterator> map) {
-        return null;
+    public Status scan(String table, String startKey, int recordCount, Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public Status insert(String s, String s1, Map<String, ByteIterator> map) {
+    public Status update(String table, String key, Map<String, ByteIterator> values) {
+        try {
+            byte[] valueBytes = serializeValues(values);
+            String clenKey = getClenKey(table, key);
+            String data = ByteString.copyFrom(valueBytes).toString();
+            clenClient.commit(clenKey, data);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         return null;
     }
 
+    private String getClenKey(String table, String key) {
+        return table + "." + key;
+    }
+
     @Override
-    public Status delete(String s, String s1) {
-        return null;
+    public Status insert(String table, String keys, Map<String, ByteIterator> values) {
+        return update(table,keys,values);
+    }
+
+    @Override
+    public Status delete(String table, String key) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Code for serializeValues and deserailizeValues taken from:
+     * https://github.com/brianfrankcooper/YCSB/blob/0.17.0/rocksdb/src/main/java/site/ycsb/db/rocksdb/RocksDBClient.java
+     *
+     * @param values
+     * @return
+     * @throws IOException
+     */
+    private byte[] serializeValues(final Map<String, ByteIterator> values) throws IOException {
+        try (final ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            final ByteBuffer buf = ByteBuffer.allocate(4);
+
+            for (final Map.Entry<String, ByteIterator> value : values.entrySet()) {
+                final byte[] keyBytes = value.getKey().getBytes(UTF_8);
+                final byte[] valueBytes = value.getValue().toArray();
+
+                buf.putInt(keyBytes.length);
+                baos.write(buf.array());
+                baos.write(keyBytes);
+
+                buf.clear();
+
+                buf.putInt(valueBytes.length);
+                baos.write(buf.array());
+                baos.write(valueBytes);
+
+                buf.clear();
+            }
+            return baos.toByteArray();
+        }
+    }
+
+    private Map<String, ByteIterator> deserializeValues(final byte[] values, final Set<String> fields,
+                                                        final Map<String, ByteIterator> result) {
+        final ByteBuffer buf = ByteBuffer.allocate(4);
+
+        int offset = 0;
+        while (offset < values.length) {
+            buf.put(values, offset, 4);
+            buf.flip();
+            final int keyLen = buf.getInt();
+            buf.clear();
+            offset += 4;
+
+            final String key = new String(values, offset, keyLen);
+            offset += keyLen;
+
+            buf.put(values, offset, 4);
+            buf.flip();
+            final int valueLen = buf.getInt();
+            buf.clear();
+            offset += 4;
+
+            if (fields == null || fields.contains(key)) {
+                result.put(key, new ByteArrayByteIterator(values, offset, valueLen));
+            }
+
+            offset += valueLen;
+        }
+
+        return result;
     }
 }
