@@ -12,24 +12,57 @@ import site.ycsb.Status;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.Vector;
+import java.util.*;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class ClenYCSBClient extends DB {
 
     private final ClenClient clenClient;
+    private final ClenClient clenReadClient;
 
     public ClenYCSBClient() {
-        clenClient = new ClenClient("localhost", 35002);
+        String hostPort = System.getenv("CLEN_LEADER");
+        String[] hostPortTuple = extractHostAndPort(hostPort);
+        String host = hostPortTuple[0];
+        String port = hostPortTuple[1];
+        String readPort = System.getenv("CLENRC");
+        if (!port.equals("")) {
+
+            int intPort = Integer.parseInt(port);
+            clenClient = new ClenClient("localhost", intPort);
+        } else {
+            throw new RuntimeException("Cannot load leader port");
+        }
+        if (!readPort.equals("")) {
+
+            int intPort = Integer.parseInt(readPort);
+            clenReadClient = new ClenClient("localhost", intPort);
+        } else {
+            throw new RuntimeException("Cannot load leader port");
+        }
+    }
+
+    protected static String[] extractHostAndPort(String hostPort) {
+        String[] hostAndPort = {"localhost", "35001"};
+        if (hostPort!=null && !hostPort.equals("")){
+            String[] hp = hostPort.split(":");
+            if (hp.length>0) {
+                if (hp!= null && !hp[0].equals("")) {
+                    hostAndPort[0]=hp[0];
+                }
+                if (!hp[1].equals("")) {
+                    hostAndPort[1]=hp[1];
+                }
+            }
+        }
+        return hostAndPort;
     }
 
     @Override
     public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
-        String clenKey= getClenKey(table, key);
+        String clenKey = getClenKey(table, key);
+//        ReadResponse response = clenReadClient.read(clenKey);
         ReadResponse response = clenClient.read(clenKey);
         KeyVal data = response.getData();
         byte[] valueBytes = data.getValue().toByteArray();
@@ -66,7 +99,7 @@ public class ClenYCSBClient extends DB {
 
     @Override
     public Status insert(String table, String keys, Map<String, ByteIterator> values) {
-        return update(table,keys,values);
+        return update(table, keys, values);
     }
 
     @Override
