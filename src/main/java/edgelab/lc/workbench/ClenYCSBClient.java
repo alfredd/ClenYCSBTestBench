@@ -19,14 +19,14 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public class ClenYCSBClient extends DB {
 
     private final ClenClient clenClient;
-    private final ClenClient clenReadClient;
+//    private final ClenClient clenReadClient;
 
     public ClenYCSBClient() {
         String hostPort = System.getenv("CLEN_LEADER");
         String[] hostPortTuple = extractHostAndPort(hostPort);
         String host = hostPortTuple[0];
         String port = hostPortTuple[1];
-        String readPort = System.getenv("CLENRC");
+//        String readPort = System.getenv("CLENRC");
         if (!port.equals("")) {
 
             int intPort = Integer.parseInt(port);
@@ -34,13 +34,13 @@ public class ClenYCSBClient extends DB {
         } else {
             throw new RuntimeException("Cannot load leader port");
         }
-        if (!readPort.equals("")) {
-
-            int intPort = Integer.parseInt(readPort);
-            clenReadClient = new ClenClient("localhost", intPort);
-        } else {
-            throw new RuntimeException("Cannot load leader port");
-        }
+//        if (!readPort.equals("")) {
+//
+//            int intPort = Integer.parseInt(readPort);
+//            clenReadClient = new ClenClient("localhost", intPort);
+//        } else {
+//            throw new RuntimeException("Cannot load leader port");
+//        }
     }
 
     protected static String[] extractHostAndPort(String hostPort) {
