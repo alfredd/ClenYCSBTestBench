@@ -30,7 +30,7 @@ public class ClenYCSBClient extends DB {
         if (!port.equals("")) {
 
             int intPort = Integer.parseInt(port);
-            clenClient = new ClenClient("localhost", intPort);
+            clenClient = new ClenClient(host, intPort);
         } else {
             throw new RuntimeException("Cannot load leader port");
         }
