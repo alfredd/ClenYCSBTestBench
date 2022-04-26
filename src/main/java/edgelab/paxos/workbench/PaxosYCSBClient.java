@@ -1,10 +1,7 @@
-package edgelab.lc.workbench;
+package edgelab.paxos.workbench;
 
 import com.google.protobuf.ByteString;
-import edgelab.lc.KeyVal;
-import edgelab.lc.ReadResponse;
-import edgelab.lc.ResponseStatus;
-import site.ycsb.ByteArrayByteIterator;
+import edgelab.paxos.KV;
 import site.ycsb.ByteIterator;
 import site.ycsb.DB;
 import site.ycsb.Status;
@@ -12,23 +9,26 @@ import site.ycsb.Status;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.Vector;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public class ClenYCSBClient extends DB {
+public class PaxosYCSBClient extends DB {
 
-    private final ClenClient clenClient;
+    private final ReplicaClient replicaClient;
 
-    public ClenYCSBClient() {
-        String hostPort = System.getenv("CLEN_LEADER");
+    public PaxosYCSBClient() {
+        String hostPort = System.getenv("PAXOS");
         String[] hostPortTuple = extractHostAndPort(hostPort);
         String host = hostPortTuple[0];
         String port = hostPortTuple[1];
         if (!port.equals("")) {
 
             int intPort = Integer.parseInt(port);
-            clenClient = new ClenClient(host, intPort);
+            replicaClient = new ReplicaClient(host, intPort);
         } else {
             throw new RuntimeException("Cannot load leader port");
         }
@@ -51,22 +51,13 @@ public class ClenYCSBClient extends DB {
     }
 
     @Override
-    public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
-        String clenKey = getClenKey(table, key);
-//        ReadResponse response = clenReadClient.read(clenKey);
-        ReadResponse response = clenClient.read(clenKey);
-        KeyVal data = response.getData();
-        byte[] valueBytes = data.getValue().toByteArray();
-//        deserializeValues(valueBytes,fields,result);
-        if (!response.getStatus().equals(ResponseStatus.SUCCESS)) {
-            return Status.ERROR;
-        } else {
-            return Status.OK;
-        }
+    public Status read(String table, String key, Set<String> set, Map<String, ByteIterator> map) {
+        KV response = replicaClient.read(table+"."+key);
+        return Status.OK;
     }
 
     @Override
-    public Status scan(String table, String startKey, int recordCount, Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
+    public Status scan(String s, String s1, int i, Set<String> set, Vector<HashMap<String, ByteIterator>> vector) {
         throw new UnsupportedOperationException();
     }
 
@@ -74,9 +65,9 @@ public class ClenYCSBClient extends DB {
     public Status update(String table, String key, Map<String, ByteIterator> values) {
         try {
             byte[] valueBytes = serializeValues(values);
-            String clenKey = getClenKey(table, key);
+            String clenKey = table+"."+key;
             String data = ByteString.copyFrom(valueBytes).toString();
-            clenClient.commit(clenKey, data);
+            replicaClient.write(clenKey, data);
             return Status.OK;
         } catch (IOException e) {
             e.printStackTrace();
@@ -84,19 +75,16 @@ public class ClenYCSBClient extends DB {
         return Status.ERROR;
     }
 
-    private String getClenKey(String table, String key) {
-        return table + "." + key;
+    @Override
+    public Status insert(String table, String key, Map<String, ByteIterator> values) {
+        return update(table, key, values);
     }
 
     @Override
-    public Status insert(String table, String keys, Map<String, ByteIterator> values) {
-        return update(table, keys, values);
-    }
-
-    @Override
-    public Status delete(String table, String key) {
+    public Status delete(String s, String s1) {
         throw new UnsupportedOperationException();
     }
+
 
     /**
      * Code for serializeValues and deserailizeValues taken from:
@@ -130,34 +118,4 @@ public class ClenYCSBClient extends DB {
         }
     }
 
-    private Map<String, ByteIterator> deserializeValues(final byte[] values, final Set<String> fields,
-                                                        final Map<String, ByteIterator> result) {
-        final ByteBuffer buf = ByteBuffer.allocate(4);
-
-        int offset = 0;
-        while (offset < values.length) {
-            buf.put(values, offset, 4);
-            buf.flip();
-            final int keyLen = buf.getInt();
-            buf.clear();
-            offset += 4;
-
-            final String key = new String(values, offset, keyLen);
-            offset += keyLen;
-
-            buf.put(values, offset, 4);
-            buf.flip();
-            final int valueLen = buf.getInt();
-            buf.clear();
-            offset += 4;
-
-            if (fields == null || fields.contains(key)) {
-                result.put(key, new ByteArrayByteIterator(values, offset, valueLen));
-            }
-
-            offset += valueLen;
-        }
-
-        return result;
-    }
 }
